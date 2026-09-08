@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="PosterStudio — create personalized event and program posters online. Choose a template, add your name and photo, download HD posters and share them on WhatsApp.">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<meta name="theme-color" content="#16803a">
+<link rel="canonical" href="https://posterstudioo.netlify.app/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="PosterStudio — Create Personalized Posters Online">
+<meta property="og:description" content="Create personalized program and event posters with your name and photo, then download or share on WhatsApp.">
+<meta property="og:url" content="https://posterstudioo.netlify.app/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="PosterStudio — Personalized Poster Maker">
+<meta name="twitter:description" content="Create personalized posters online and share them on WhatsApp.">
+<title>PosterStudio — Personalized Poster Maker & Design Services</title>
+<style>
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,Arial,sans-serif;background:#f7f9f8;color:#101828;overflow-x:hidden}
+a{text-decoration:none;color:inherit}
+.container{max-width:1120px;margin:auto;padding:0 20px}
+nav{height:74px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:24px;font-weight:800;letter-spacing:-.7px}
+.logo span{color:#16803a}
+.navlinks{display:flex;gap:26px;font-size:14px;font-weight:650;color:#475467}
+.navlinks a:hover{color:#16803a}
+.navbtn{background:#111;color:white;padding:11px 18px;border-radius:10px}
+.hero{position:relative;padding:75px 0 85px;background:linear-gradient(180deg,#fff,#f4faf6);overflow:hidden}
+.blob{position:absolute;border-radius:50%;filter:blur(2px);opacity:.45;animation:float 7s ease-in-out infinite}
+.b1{width:220px;height:220px;background:#d9f5e4;right:-70px;top:40px}
+.b2{width:130px;height:130px;background:#e9e1ff;left:-40px;bottom:20px;animation-delay:1.5s}
+.heroGrid{display:grid;grid-template-columns:1.05fr .95fr;gap:65px;align-items:center;position:relative;z-index:1}
+.badge{display:inline-block;padding:8px 13px;border-radius:30px;background:#e8f7ee;color:#16803a;font-size:13px;font-weight:750;animation:fadeUp .7s ease both}
+h1{font-size:54px;line-height:1.06;letter-spacing:-2.7px;margin:18px 0 18px;animation:fadeUp .8s .08s ease both}
+h1 span{color:#16803a}
+.hero p{font-size:18px;line-height:1.7;color:#667085;max-width:600px;animation:fadeUp .8s .16s ease both}
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px;animation:fadeUp .8s .24s ease both}
+.btn{padding:14px 21px;border-radius:12px;font-weight:750;border:1px solid #ddd;transition:.25s}
+.btn:hover{transform:translateY(-3px);box-shadow:0 10px 24px #00000012}
+.primary{background:#111;color:#fff;border-color:#111}
+.green{background:#20c968;color:#fff;border-color:#20c968}
+.preview{background:white;border-radius:26px;padding:14px;box-shadow:0 24px 70px #00000018;transform:rotate(2deg);animation:heroCard 1s .25s ease both}
+.preview img{width:100%;display:block;border-radius:16px}
+section{padding:80px 0}
+.sectionHead{text-align:center;max-width:700px;margin:0 auto 42px}
+.sectionHead h2{font-size:36px;letter-spacing:-1.2px;margin:0 0 10px}
+.sectionHead p{color:#667085;line-height:1.65;margin:0}
+.services{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.service{background:#fff;border:1px solid #e7ebe8;border-radius:20px;padding:27px;min-height:190px;transition:.3s;position:relative;overflow:hidden}
+.service:after{content:"";position:absolute;width:90px;height:90px;border-radius:50%;right:-35px;bottom:-35px;background:#eef9f2;transition:.3s}
+.service:hover{transform:translateY(-8px);box-shadow:0 18px 40px #00000010}
+.service:hover:after{transform:scale(1.5)}
+.icon{font-size:31px;margin-bottom:16px;display:inline-block;animation:bob 3s ease-in-out infinite}
+.service:nth-child(2) .icon{animation-delay:.3s}.service:nth-child(3) .icon{animation-delay:.6s}
+.service h3{margin:0 0 9px;font-size:19px}.service p{margin:0;color:#667085;line-height:1.55;font-size:14px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.step{background:#fff;border:1px solid #e7ebe8;border-radius:18px;padding:23px;transition:.3s}
+.step:hover{transform:translateY(-5px)}
+.num{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#e8f7ee;color:#16803a;font-weight:800;margin-bottom:16px}
+.step h3{font-size:17px;margin:0 0 7px}.step p{font-size:14px;color:#667085;line-height:1.5;margin:0}
+.cta{background:#111;color:#fff;border-radius:28px;padding:52px;display:flex;align-items:center;justify-content:space-between;gap:30px;overflow:hidden;position:relative}
+.cta h2{margin:0 0 9px;font-size:32px}.cta p{margin:0;color:#c5c7cb;line-height:1.6}
+.cta .btn{background:#20c968;border-color:#20c968;color:#fff;position:relative;z-index:1}
+footer{padding:28px 0;color:#98a2b3;font-size:14px;border-top:1px solid #e5e8e6}
+.reveal{opacity:0;transform:translateY(25px);transition:opacity .7s ease,transform .7s ease}
+.reveal.show{opacity:1;transform:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes heroCard{from{opacity:0;transform:translate(35px,20px) rotate(6deg)}to{opacity:1;transform:rotate(2deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@media(max-width:800px){
+.navlinks{display:none}.hero{padding:45px 0 60px}.heroGrid{grid-template-columns:1fr;gap:38px}
+h1{font-size:41px}.services{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}
+.cta{padding:32px;flex-direction:column;align-items:flex-start}
+}
+@media(max-width:480px){.steps{grid-template-columns:1fr}}
+
+/* PosterStudio premium refresh */
+body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fbf9}
+header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.82);backdrop-filter:blur(18px);border-bottom:1px solid rgba(16,24,40,.06)}
+nav{height:78px}.logo{font-size:26px;letter-spacing:-1.2px}.logo:before{content:"✦";display:inline-grid;place-items:center;width:30px;height:30px;margin-right:7px;border-radius:9px;background:linear-gradient(135deg,#20c968,#16803a);color:#fff;font-size:16px;vertical-align:2px;box-shadow:0 8px 20px #20c96833}
+.navlinks{gap:30px}.navlinks a{transition:.2s}.navbtn{border-radius:13px;background:#101412;padding:12px 19px;box-shadow:0 8px 20px #00000012;transition:.25s}.navbtn:hover{transform:translateY(-2px);background:#16803a}
+.hero{padding:92px 0 100px;background:radial-gradient(circle at 85% 20%,#dcf9e8 0,transparent 30%),radial-gradient(circle at 5% 85%,#e8f0ff 0,transparent 28%),linear-gradient(180deg,#fff,#f6fbf8)}
+.heroGrid{gap:72px}.badge{padding:9px 15px;border:1px solid #ccefd9;box-shadow:0 8px 25px #16803a12}.hero h1{font-size:clamp(44px,5.2vw,66px);line-height:1.02;letter-spacing:-3.4px;margin-top:20px}.hero p{font-size:19px;max-width:590px}.actions .btn{padding:15px 22px;border-radius:14px}.primary{box-shadow:0 14px 30px #0000001c}.green{box-shadow:0 14px 30px #20c96830}
+section{padding:96px 0}.sectionHead{margin-bottom:48px}.sectionHead h2{font-size:40px;letter-spacing:-1.8px}.sectionHead p{font-size:16px}
+.services{grid-template-columns:repeat(3,1fr);gap:20px}.service{min-height:205px;padding:29px;border-radius:24px;box-shadow:0 5px 20px #10182805}.service:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,#20c96810,transparent 55%);opacity:0;transition:.3s}.service:hover:before{opacity:1}.service:hover{transform:translateY(-10px);box-shadow:0 24px 55px #16803a14;border-color:#cdeed9}.icon{width:54px;height:54px;display:grid;place-items:center;border-radius:16px;background:#effaf3;font-size:28px;margin-bottom:18px}
+.steps{gap:18px}.step{border-radius:22px;padding:26px;box-shadow:0 6px 24px #10182805}.num{width:42px;height:42px;box-shadow:0 7px 18px #20c96824}
+.cta{border-radius:30px;padding:58px;box-shadow:0 24px 70px #00000018;background:linear-gradient(135deg,#111,#17251d)}.cta:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;right:-70px;top:-100px;background:#20c96822;filter:blur(5px)}.cta h2{font-size:36px;letter-spacing:-1.4px}.cta .btn{border-radius:14px;box-shadow:0 12px 28px #20c96835}
+footer{background:#fff}
+@media(max-width:800px){nav{height:68px}.logo{font-size:23px}.hero{padding:60px 0 70px}.heroGrid{gap:45px}.services{grid-template-columns:1fr 1fr}.sectionHead h2{font-size:34px}}
+@media(max-width:560px){.services{grid-template-columns:1fr}.hero h1{letter-spacing:-2.2px}.cta{padding:34px 26px}.cta h2{font-size:29px}}
+
+.adminlink{font-weight:800;color:#16803a;text-decoration:none}.pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.priceCard{background:#fff;border:1px solid #e7ebe8;border-radius:24px;padding:30px;position:relative;overflow:hidden;transition:.3s;box-shadow:0 8px 28px #10182806}.priceCard:hover{transform:translateY(-8px);box-shadow:0 24px 55px #16803a14}.priceCard.featured{border:2px solid #20c968;box-shadow:0 18px 45px #20c96818}.popular{position:absolute;right:18px;top:18px;background:#e8f7ee;color:#16803a;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800}.price{font-size:40px;font-weight:850;letter-spacing:-2px;margin:12px 0 4px}.price small{font-size:14px;color:#98a2b3;font-weight:600;letter-spacing:0}.plan{font-size:21px;font-weight:800}.days{display:inline-flex;align-items:center;gap:7px;margin:15px 0;padding:9px 12px;border-radius:12px;background:#f0faf4;color:#16803a;font-weight:800;font-size:14px}.priceCard ul{list-style:none;padding:0;margin:18px 0 0}.priceCard li{padding:8px 0;color:#667085;font-size:14px}.priceCard li:before{content:'✓';color:#16803a;font-weight:900;margin-right:8px}.priceBtn{display:block;text-align:center;margin-top:20px;padding:13px;border-radius:13px;background:#111;color:#fff;font-weight:800}.priceCard.featured .priceBtn{background:#20c968}.priceNote{text-align:center;color:#98a2b3;font-size:13px;margin-top:25px}@media(max-width:800px){.pricing{grid-template-columns:1fr}.priceCard.featured{transform:none}}
+</style>
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"WebSite",
+  "name":"PosterStudio",
+  "url":"https://posterstudioo.netlify.app/",
+  "description":"Personalized poster maker and creative design services for programs and events."
+}
+</script>
+</head>
+<body>
+
+<header>
+<div class="container"><nav>
+<div class="logo">Poster<span>Studio</span></div>
+<div class="navlinks">
+<a href="services.html">Services</a>
+<a href="#pricing">Pricing</a>
+<a href="generator.html">Poster Maker</a>
+<a href="#how">How It Works</a>
+</div>
+<a href="admin.html" class="adminlink">Admin</a><a class="navbtn" href="#pricing">Get Started</a>
+</nav></div>
+</header>
+
+<main>
+<section class="hero">
+<div class="blob b1"></div><div class="blob b2"></div>
+<div class="container heroGrid">
+<div>
+<span class="badge">✨ Creative • Fast • Professional</span>
+<h1>Designs that make your <span>message stand out.</span></h1>
+<p>Create personalized posters instantly or let us design professional graphics for your events, business and social media.</p>
+<div class="actions">
+<a class="btn primary" href="generator.html">Create a Poster →</a>
+<a class="btn green" href="services.html">Explore Services</a>
+</div>
+</div>
+</div>
+</section>
+
+<section class="trust" style="padding:22px 0;background:#fff;border-top:1px solid #edf1ee;border-bottom:1px solid #edf1ee">
+<div class="container" style="display:flex;justify-content:center;gap:34px;flex-wrap:wrap;color:#667085;font-size:13px;font-weight:700">
+<span>✓ HD Quality</span><span>✓ Fast Delivery</span><span>✓ Mobile Friendly</span><span>✓ Custom Designs</span>
+</div></section>
+
+<section id="pricing" style="background:#f8fbf9">
+<div class="container">
+<div class="sectionHead reveal"><h2>Plans & Campaign Days</h2><p>Choose a plan that fits your campaign. Prices and campaign validity can be updated from Admin Control.</p></div>
+<div class="pricing" id="pricingGrid"></div>
+<div class="priceNote">Need a custom campaign? Contact us for an Ultimate plan.</div>
+</div></section>
+
+<section id="services">
+<div class="container">
+<div class="sectionHead reveal">
+<h2>Our Creative Services</h2>
+<p>Everything you need to create a strong visual presence — simple, professional and affordable.</p>
+</div>
+<div class="services">
+<div class="service reveal"><div class="icon">🎨</div><h3>Poster Design</h3><p>Professional event, campaign, Islamic program and promotional posters.</p></div>
+<div class="service reveal"><div class="icon">📱</div><h3>Social Media Designs</h3><p>Instagram, Facebook and WhatsApp creatives designed for better engagement.</p></div>
+<div class="service reveal"><div class="icon">💼</div><h3>Business Advertising</h3><p>Eye-catching promotional graphics for shops, brands and businesses.</p></div>
+<div class="service reveal"><div class="icon">💍</div><h3>Wedding & Invitation</h3><p>Elegant wedding, engagement, invitation and special occasion designs.</p></div>
+<div class="service reveal"><div class="icon">▶️</div><h3>YouTube Thumbnails</h3><p>Attention-grabbing thumbnails designed to make your videos stand out.</p></div>
+<div class="service reveal"><div class="icon">✨</div><h3>Custom Design</h3><p>Have a unique idea? Tell us what you need and we will create it.</p></div>
+</div>
+</div>
+</section>
+
+
+
+<section id="generator" style="background:#fff">
+<div class="container">
+<div class="sectionHead reveal">
+<h2>Personalized Poster Maker</h2>
+<p>Upload your photo, enter your name and create your poster in seconds.</p>
+</div>
+<div class="cta reveal">
+<div><h2>Make your own poster</h2><p>Generate an HD poster and share it directly from your phone.</p></div>
+<a class="btn" href="generator.html">Open Poster Maker →</a>
+</div>
+</div>
+</section>
+
+<section id="how">
+<div class="container">
+<div class="sectionHead reveal"><h2>How It Works</h2><p>Creating a personalized poster is as easy as 1–2–3–4.</p></div>
+<div class="steps">
+<div class="step reveal"><div class="num">1</div><h3>Choose a Template</h3><p>Select the campaign or poster template you like.</p></div>
+<div class="step reveal"><div class="num">2</div><h3>Upload Photo</h3><p>Add your photo from your phone.</p></div>
+<div class="step reveal"><div class="num">3</div><h3>Add Your Name</h3><p>Enter your name and personalize the design.</p></div>
+<div class="step reveal"><div class="num">4</div><h3>Download & Share</h3><p>Download the HD poster and share it easily.</p></div>
+</div>
+</div>
+</section>
+
+<section style="background:#101828;color:#fff">
+<div class="container">
+<div class="cta reveal" style="background:transparent;color:#fff">
+<div><h2>Admin Control</h2><p style="color:#d0d5dd">Manage pricing, campaign days and services from your control panel.</p></div>
+<a class="btn green" href="admin.html">Open Admin Panel →</a>
+</div></div></section>
+
+<section id="contact">
+<div class="container">
+<div class="cta reveal">
+<div><h2>Need a custom design?</h2><p>Send us your requirements and our design service team will create it for you.</p></div>
+<a class="btn" href="services.html#order">Order on WhatsApp</a>
+</div>
+</div>
+</section>
+</main>
+
+<footer><div class="container">© 2026 PosterStudio · Personalized Posters & Creative Design Services</div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://obhhrkvdygbgozomkebs.supabase.co';
+const SUPABASE_KEY='sb_publishable__2eqk9u6MYspKuJzhPbbFQ_sRC2wuXu';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const defaultPricing=[['Basic',469,90],['Starter',669,90],['Professional',1969,365]];
+function esc(v){return String(v??'').replace(/[&<>\"']/g,'');}
+async function loadPublicSettings(){
+  const grid=document.getElementById('pricingGrid');
+  try{
+    const r=await sb.from('plans').select('id,name,price,campaign_days,active').eq('active',true).order('id');
+    const plans=(r.data&&r.data.length)?r.data.map(x=>[x.name,x.price,x.campaign_days]):defaultPricing;
+    if(grid) grid.innerHTML=plans.map((x,i)=>`<div class="priceCard reveal ${i===1?'featured':''}">${i===1?'<span class="popular">POPULAR</span>':''}<div class="plan">${esc(x[0])}</div><div class="price">₹${Number(x[1]||0).toLocaleString('en-IN')} <small>/ plan</small></div><div class="days">📅 ${Number(x[2]||0)} Days Campaign</div><ul><li>Unlimited Posters</li><li>HD Quality</li><li>Free Hosting</li><li>Professional Support</li></ul><a class="priceBtn" href="services.html">Choose ${esc(x[0])}</a></div>`).join('');
+    document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+  }catch(e){
+    if(grid) grid.innerHTML=defaultPricing.map((x,i)=>`<div class="priceCard reveal ${i===1?'featured':''}"><div class="plan">${esc(x[0])}</div><div class="price">₹${Number(x[1]).toLocaleString('en-IN')} <small>/ plan</small></div><div class="days">📅 ${x[2]} Days Campaign</div></div>`).join('');
+  }
+}
+loadPublicSettings();
+
+const observer=new IntersectionObserver(entries=>{
+ entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')})
+},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+</script>
+</body>
+</html>
