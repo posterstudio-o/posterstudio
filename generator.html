@@ -17,7 +17,37 @@ function photoFields(){return getFields(current).filter(f=>f.type==='photo')}
 function requiredReady(){const pf=photoFields();return pf.length>0&&pf.every(f=>photos[f.id]&&cropped[f.id])}
 function updateButtons(){const ok=requiredReady();['generate','download','share'].forEach(id=>document.getElementById(id).disabled=!ok);if(ok)statusEl.textContent='Ready ✓'}
 async function loadTemplates(){statusEl.textContent='Loading templates...';const r=await sb.from('site_settings').select('wa,services').limit(1).maybeSingle();if(r.error){statusEl.textContent='Could not load templates: '+r.error.message;return}settings=r.data||{};const st=normalize(settings.services);templates=(st.templates||[]).filter(t=>t.active);if(directId){const t=templates.find(x=>String(x.id)===String(directId));if(!t){statusEl.textContent='This template link is not available.';return}current=t;document.getElementById('templateChooser').classList.add('hidden');document.getElementById('directNote').classList.remove('hidden');document.getElementById('directNote').innerHTML='<b>'+escapeHtml(t.name)+'</b><br>Personalized template';renderFields();await loadBgAndDraw();return}const sel=document.getElementById('template');sel.innerHTML=templates.length?templates.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join(''):'<option value="">No active templates</option>';if(templates.length){sel.onchange=async()=>{current=templates.find(x=>String(x.id)===sel.value);photos={};values={};crop={};cropped={};renderFields();await loadBgAndDraw();updateButtons()};current=templates[0];renderFields();await loadBgAndDraw()}statusEl.textContent=templates.length?'Select and crop your photo.':'Admin has not uploaded a template yet.'}
-function cropDefaults(f,im){const w=+f.w||300,h=+f.h||400;const base=Math.max(w/im.width,h/im.height);return{zoom:1,px:0,py:0,base,auto:false,face:null}}
+function getMaskInfo(f){
+  if(!current?._img)return null;
+  const z=templateSize(),lp=fieldPx(f);
+  const key=String(current.id)+'|'+f.id+'|'+(+f.x||0)+','+(+f.y||0)+','+(+f.w||0)+','+(+f.h||0)+'|'+z.w+'x'+z.h;
+  if(photoMaskCache.has(key))return photoMaskCache.get(key);
+  const x=Math.max(0,Math.floor(lp.x)),y=Math.max(0,Math.floor(lp.y)),w=Math.max(1,Math.floor(lp.w)),h=Math.max(1,Math.floor(lp.h));
+  const mw=Math.min(w,z.w-x),mh=Math.min(h,z.h-y);
+  if(mw<2||mh<2){photoMaskCache.set(key,null);return null}
+  const tc=document.createElement('canvas');tc.width=z.w;tc.height=z.h;
+  const tx=tc.getContext('2d',{willReadFrequently:true});tx.drawImage(current._img,0,0,z.w,z.h);
+  let data;try{data=tx.getImageData(x,y,mw,mh)}catch(e){photoMaskCache.set(key,null);return null}
+  let transparent=0,minX=mw,minY=mh,maxX=-1,maxY=-1;
+  for(let yy=0;yy<mh;yy++)for(let xx=0;xx<mw;xx++){
+    const a=data.data[(yy*mw+xx)*4+3];
+    if(a<245){transparent++;if(xx<minX)minX=xx;if(xx>maxX)maxX=xx;if(yy<minY)minY=yy;if(yy>maxY)maxY=yy}
+  }
+  const ratio=transparent/(mw*mh);
+  if(ratio<0.05||maxX<0){photoMaskCache.set(key,null);return null}
+  const mc=document.createElement('canvas');mc.width=mw;mc.height=mh;const md=mc.getContext('2d').createImageData(mw,mh);
+  for(let i=0;i<data.data.length;i+=4){const a=data.data[i+3];md.data[i]=255;md.data[i+1]=255;md.data[i+2]=255;md.data[i+3]=Math.max(0,255-a)}
+  mc.getContext('2d').putImageData(md,0,0);
+  const info={mask:mc,bx:minX,by:minY,bw:maxX-minX+1,bh:maxY-minY+1,fieldW:mw,fieldH:mh};
+  photoMaskCache.set(key,info);return info;
+}
+function getPhotoRegion(f){
+  const lp=fieldPx(f),info=getMaskInfo(f);
+  if(!info)return{x:0,y:0,w:+f.w||300,h:+f.h||400,mask:null,bx:0,by:0};
+  const z=templateSize(),sx=BASE_W/z.w,sy=BASE_H/z.h;
+  return{x:info.bx*sx,y:info.by*sy,w:info.bw*sx,h:info.bh*sy,mask:info.mask,bx:info.bx,by:info.by,fieldW:info.fieldW,fieldH:info.fieldH,lp};
+}
+function cropDefaults(f,im){const r=getPhotoRegion(f),w=r.w,h=r.h;const base=Math.max(w/im.width,h/im.height);return{zoom:1,px:0,py:0,base,auto:false,face:null}}
 let faceDetectorPromise=null,photoMaskCache=new Map();
 async function getFaceDetector(){
   if(faceDetectorPromise)return faceDetectorPromise;
@@ -30,71 +60,41 @@ async function getFaceDetector(){
 }
 function clampCrop(c,w,h,im){const s=c.base*(c.zoom||1),sw=im.width*s,sh=im.height*s;c.px=Math.min(0,Math.max(w-sw,c.px||0));c.py=Math.min(0,Math.max(h-sh,c.py||0));}
 async function autoFaceCrop(f,im){
-  const w=+f.w||300,h=+f.h||400,c=crop[f.id]||cropDefaults(f,im);
+  const r=getPhotoRegion(f),w=r.w,h=r.h,c=crop[f.id]||cropDefaults(f,im);
   try{
-    const detector=await getFaceDetector();
-    const result=detector.detect(im);
-    const ds=result?.detections||[];
+    const detector=await getFaceDetector();const result=detector.detect(im);const ds=result?.detections||[];
     if(!ds.length)throw new Error('No face detected');
     const best=ds.slice().sort((a,b)=>(b.boundingBox.width*b.boundingBox.height)-(a.boundingBox.width*a.boundingBox.height))[0];
-    const b=best.boundingBox;
-    const fx=+b.originX||+b.x||0,fy=+b.originY||+b.y||0,fw=+b.width||0,fh=+b.height||0;
-    if(!fw||!fh)throw new Error('Invalid face box');
-    const targetFaceH=h*(+f.face_ratio||0.38);
-    c.zoom=Math.max(1,Math.min(3,targetFaceH/(fh*c.base)));
-    const s=c.base*c.zoom,sw=im.width*s,sh=im.height*s;
-    const targetX=w/2,targetY=h*(+f.face_y||0.42);
-    c.px=targetX-(fx+fw/2)*s-(w-sw)/2;
-    c.py=targetY-(fy+fh/2)*s-(h-sh)/2;
-    clampCrop(c,w,h,im);c.auto=true;c.face={x:fx,y:fy,w:fw,h:fh};crop[f.id]=c;
-    return true;
+    const b=best.boundingBox,fx=+b.originX||+b.x||0,fy=+b.originY||+b.y||0,fw=+b.width||0,fh=+b.height||0;if(!fw||!fh)throw new Error('Invalid face box');
+    const targetFaceH=h*(+f.face_ratio||0.38);c.zoom=Math.max(1,Math.min(3,targetFaceH/(fh*c.base)));
+    const s=c.base*c.zoom,sw=im.width*s,sh=im.height*s,targetX=w/2,targetY=h*(+f.face_y||0.42);
+    c.px=targetX-(fx+fw/2)*s-(w-sw)/2;c.py=targetY-(fy+fh/2)*s-(h-sh)/2;clampCrop(c,w,h,im);c.auto=true;c.face={x:fx,y:fy,w:fw,h:fh};crop[f.id]=c;return true;
   }catch(e){c.auto=false;crop[f.id]=c;return false}
 }
-function getPhotoMask(f){
-  if(!current?._img)return null;
-  const z=templateSize(),lp=fieldPx(f);
-  const key=String(current.id)+'|'+f.id+'|'+(+f.x||0)+','+(+f.y||0)+','+(+f.w||0)+','+(+f.h||0)+'|'+z.w+'x'+z.h;
-  if(photoMaskCache.has(key))return photoMaskCache.get(key);
-  const x=Math.max(0,Math.floor(lp.x)),y=Math.max(0,Math.floor(lp.y)),w=Math.max(1,Math.floor(lp.w)),h=Math.max(1,Math.floor(lp.h));
-  const tc=document.createElement('canvas');tc.width=z.w;tc.height=z.h;const tx=tc.getContext('2d',{willReadFrequently:true});tx.drawImage(current._img,0,0,z.w,z.h);
-  let data;try{data=tx.getImageData(x,y,Math.min(w,z.w-x),Math.min(h,z.h-y))}catch(e){photoMaskCache.set(key,null);return null}
-  const mw=Math.min(w,z.w-x),mh=Math.min(h,z.h-y);
-  let transparent=0;for(let i=3;i<data.data.length;i+=4){if(data.data[i]<245)transparent++}
-  const ratio=transparent/(mw*mh);
-  if(ratio<0.05){photoMaskCache.set(key,null);return null}
-  const mc=document.createElement('canvas');mc.width=mw;mc.height=mh;const md=mc.getContext('2d').createImageData(mw,mh);
-  for(let i=0,j=3;i<data.data.length;i+=4,j+=4){const a=data.data[j];md.data[j]=Math.max(0,255-a);md.data[i]=255;md.data[i+1]=255;md.data[i+2]=255}
-  mc.getContext('2d').putImageData(md,0,0);photoMaskCache.set(key,mc);return mc;
-}
+function getPhotoMask(f){const info=getMaskInfo(f);return info?info.mask:null}
 function applyFrameMask(frame,f){
-  const m=getPhotoMask(f);
-  if(!m){frame.style.maskImage='';frame.style.webkitMaskImage='';frame.style.borderRadius=Math.min(f.radius||30,Math.min(+f.w||300,+f.h||400)/8)+'px';return}
-  frame.style.borderRadius='0';const url='url("'+m.toDataURL('image/png')+'")';frame.style.maskImage=url;frame.style.webkitMaskImage=url;frame.style.maskSize='100% 100%';frame.style.webkitMaskSize='100% 100%';frame.style.maskRepeat='no-repeat';frame.style.webkitMaskRepeat='no-repeat';
+  const info=getMaskInfo(f);if(!info){frame.style.maskImage='';frame.style.webkitMaskImage='';frame.style.borderRadius=Math.min(f.radius||30,Math.min(+f.w||300,+f.h||400)/8)+'px';return}
+  frame.style.borderRadius='0';const url='url("'+info.mask.toDataURL('image/png')+'")';frame.style.maskImage=url;frame.style.webkitMaskImage=url;frame.style.maskSize='100% 100%';frame.style.webkitMaskSize='100% 100%';frame.style.maskRepeat='no-repeat';frame.style.webkitMaskRepeat='no-repeat';
 }
-
 function cropUI(f,im){
-  const id=f.id;crop[id]=crop[id]||cropDefaults(f,im);const c=crop[id],w=+f.w||300,h=+f.h||400;
+  const id=f.id;crop[id]=crop[id]||cropDefaults(f,im);const c=crop[id],r=getPhotoRegion(f),w=r.w,h=r.h;
   const wrap=document.createElement('div');wrap.className='cropbox';
   const frame=document.createElement('div');frame.className='cropframe';frame.style.aspectRatio=w+'/'+h;
   const pv=document.createElement('canvas');pv.width=Math.max(1,Math.round(w));pv.height=Math.max(1,Math.round(h));frame.appendChild(pv);const pctx=pv.getContext('2d');
-  const mask=getPhotoMask(f);
+  const info=getMaskInfo(f);
   const controls=document.createElement('div');controls.className='cropcontrols';controls.innerHTML='<span>Zoom</span><input type="range" min="1" max="3" step="0.01" value="'+c.zoom+'"><b>'+c.zoom.toFixed(2)+'×</b>';
   const actions=document.createElement('div');actions.className='cropactions';const cropBtn=document.createElement('button');cropBtn.className='btn green';cropBtn.textContent=cropped[id]?'✓ Cropped':'Crop';const resetBtn=document.createElement('button');resetBtn.className='btn dark';resetBtn.textContent='Reset';actions.append(cropBtn,resetBtn);
-  const hint=document.createElement('div');hint.className='crophint';hint.textContent='✨ Face is auto-centered. Drag or Zoom only if you want a small adjustment.';
+  const hint=document.createElement('div');hint.className='crophint';hint.textContent='✨ Photo is fitted to the actual transparent area. Drag or Zoom only if needed.';
   const ok=document.createElement('div');ok.className='cropok';ok.textContent=cropped[id]?'✓ Photo is ready':'Adjust the photo, then tap Crop';wrap.append(frame,controls,actions,hint,ok);
   const render=()=>{
-    const s=c.base*(c.zoom||1),sw=im.width*s,sh=im.height*s,dx=(w-sw)/2+(c.px||0),dy=(h-sh)/2+(c.py||0);
-    pctx.clearRect(0,0,w,h);pctx.fillStyle='#111';pctx.fillRect(0,0,w,h);
-    if(mask){
-      const pc=document.createElement('canvas');pc.width=Math.ceil(w);pc.height=Math.ceil(h);const q=pc.getContext('2d');q.drawImage(im,dx,dy,sw,sh);q.globalCompositeOperation='destination-in';q.drawImage(mask,0,0,w,h);pctx.drawImage(pc,0,0);
-    }else{pctx.save();roundedClipPreview(pctx,0,0,w,h,Math.min(f.radius||30,Math.min(w,h)/8));pctx.clip();pctx.drawImage(im,dx,dy,sw,sh);pctx.restore()}
-    pctx.save();pctx.strokeStyle='#16803a';pctx.lineWidth=Math.max(3,Math.min(w,h)*.012);pctx.strokeRect(pctx.lineWidth/2,pctx.lineWidth/2,w-pctx.lineWidth,h-pctx.lineWidth);pctx.restore();
-    controls.querySelector('b').textContent=c.zoom.toFixed(2)+'×';
+    const s=c.base*(c.zoom||1),sw=im.width*s,sh=im.height*s,dx=(w-sw)/2+(c.px||0),dy=(h-sh)/2+(c.py||0);pctx.clearRect(0,0,w,h);pctx.fillStyle='#111';pctx.fillRect(0,0,w,h);
+    if(info){const pc=document.createElement('canvas');pc.width=Math.ceil(info.fieldW);pc.height=Math.ceil(info.fieldH);const q=pc.getContext('2d');q.drawImage(im,dx-r.bx,dy-r.by,sw,sh);q.globalCompositeOperation='destination-in';q.drawImage(info.mask,0,0,info.fieldW,info.fieldH);pctx.drawImage(pc,r.bx,r.by)}
+    else{pctx.save();roundedClipPreview(pctx,0,0,w,h,Math.min(f.radius||30,Math.min(w,h)/8));pctx.clip();pctx.drawImage(im,dx,dy,sw,sh);pctx.restore()}
+    pctx.save();pctx.strokeStyle='#16803a';pctx.lineWidth=Math.max(3,Math.min(w,h)*.012);pctx.strokeRect(pctx.lineWidth/2,pctx.lineWidth/2,w-pctx.lineWidth,h-pctx.lineWidth);pctx.restore();controls.querySelector('b').textContent=c.zoom.toFixed(2)+'×';
   };requestAnimationFrame(render);
   controls.querySelector('input').oninput=e=>{c.zoom=+e.target.value;clampCrop(c,w,h,im);render();draw();cropped[id]=false;ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};
   let sx=0,sy=0,spx=0,spy=0,drag=false;const down=e=>{drag=true;const p=e.touches?e.touches[0]:e;sx=p.clientX;sy=p.clientY;spx=c.px;spy=c.py;e.preventDefault()};const move=e=>{if(!drag)return;const p=e.touches?e.touches[0]:e;const rect=pv.getBoundingClientRect();const scale=rect.width/w;c.px=spx+(p.clientX-sx)/scale;c.py=spy+(p.clientY-sy)/scale;clampCrop(c,w,h,im);render();draw();cropped[id]=false;ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons();e.preventDefault()};const up=()=>drag=false;frame.addEventListener('pointerdown',down);window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',up);
-  cropBtn.onclick=()=>{cropped[id]=true;ok.textContent='✓ Photo is ready';cropBtn.textContent='✓ Cropped';draw();updateButtons()};
-  resetBtn.onclick=()=>{crop[id]=cropDefaults(f,im);cropped[id]=false;controls.querySelector('input').value=1;render();draw();ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};return wrap
+  cropBtn.onclick=()=>{cropped[id]=true;ok.textContent='✓ Photo is ready';cropBtn.textContent='✓ Cropped';draw();updateButtons()};resetBtn.onclick=()=>{crop[id]=cropDefaults(f,im);cropped[id]=false;controls.querySelector('input').value=1;render();draw();ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};return wrap
 }
 function roundedClipPreview(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 
@@ -104,9 +104,9 @@ function roundedClip(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,
 function draw(){
   if(!current||!current._img)return; setCanvasSize(); const z=templateSize(); ctx.clearRect(0,0,z.w,z.h); const fields=getFields(current);
   fields.forEach(f=>{if(f.type==='photo'&&photos[f.id]){
-    const im=photos[f.id],lp=fieldPx(f),x=lp.x,y=lp.y,w=lp.w,h=lp.h,c=crop[f.id]||cropDefaults(f,im),sLogical=c.base*(c.zoom||1),swL=im.width*sLogical,shL=im.height*sLogical,dxL=(+f.x||0)+((+f.w||300)-swL)/2+(c.px||0),dyL=(+f.y||0)+((+f.h||400)-shL)/2+(c.py||0),scaleX=z.w/BASE_W,scaleY=z.h/BASE_H,sw=swL*scaleX,sh=shL*scaleY,dx=dxL*scaleX,dy=dyL*scaleY,mask=getPhotoMask(f);
-    if(mask){const pc=document.createElement('canvas');pc.width=Math.ceil(w);pc.height=Math.ceil(h);const pctx=pc.getContext('2d');pctx.drawImage(im,dx-x,dy-y,sw,sh);pctx.globalCompositeOperation='destination-in';pctx.drawImage(mask,0,0,w,h);ctx.drawImage(pc,x,y,w,h)}
-    else{ctx.save();roundedClip(x,y,w,h,Math.min((f.radius||30)*scaleX,Math.min(w,h)/8));ctx.clip();ctx.drawImage(im,dx,dy,sw,sh);ctx.restore()}
+    const im=photos[f.id],r=getPhotoRegion(f),regionW=r.w,regionH=r.h,logicalX=(+f.x||0)+(r.x||0),logicalY=(+f.y||0)+(r.y||0),c=crop[f.id]||cropDefaults(f,im),sLogical=c.base*(c.zoom||1),swL=im.width*sLogical,shL=im.height*sLogical,dxL=logicalX+(regionW-swL)/2+(c.px||0),dyL=logicalY+(regionH-shL)/2+(c.py||0),scaleX=z.w/BASE_W,scaleY=z.h/BASE_H,sw=swL*scaleX,sh=shL*scaleY,dx=dxL*scaleX,dy=dyL*scaleY,info=getMaskInfo(f);
+    if(info){const pc=document.createElement('canvas');pc.width=Math.ceil(info.fieldW);pc.height=Math.ceil(info.fieldH);const pctx=pc.getContext('2d');pctx.drawImage(im,dx-(r.lp?.x||0)-r.bx,dy-(r.lp?.y||0)-r.by,sw,sh);pctx.globalCompositeOperation='destination-in';pctx.drawImage(info.mask,0,0,info.fieldW,info.fieldH);ctx.drawImage(pc,(r.lp?.x||0),(r.lp?.y||0));}
+    else{const lp=fieldPx(f),x=lp.x,y=lp.y,w=lp.w,h=lp.h;ctx.save();roundedClip(x,y,w,h,Math.min((f.radius||30)*scaleX,Math.min(w,h)/8));ctx.clip();ctx.drawImage(im,dx,dy,sw,sh);ctx.restore()}
   }});
   ctx.drawImage(current._img,0,0,z.w,z.h);
   fields.forEach(f=>{if(f.type==='text'){const txt=values[f.id]||'',lp=fieldPx(f),align=f.align||'left',anchorX=align==='center'?lp.x+lp.w/2:align==='right'?lp.x+lp.w:lp.x,fs=(+f.font||52)*(z.w/BASE_W);ctx.save();ctx.fillStyle=f.color||'#111';ctx.font=`${fs}px Arial,sans-serif`;ctx.textBaseline='middle';ctx.textAlign=align;if(txt)ctx.fillText(txt,anchorX,lp.y+lp.h/2);ctx.restore()}})
