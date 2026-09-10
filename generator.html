@@ -12,7 +12,35 @@ const BASE_W=1240,BASE_H=1240; function templateSize(){const w=+(current?.width|
 const params=new URLSearchParams(location.search);const directId=params.get('template')||params.get('t');
 function normalize(v){if(Array.isArray(v))return{services:v,templates:[]};if(v&&typeof v==='object')return{services:Array.isArray(v.services)?v.services:[],templates:Array.isArray(v.templates)?v.templates:[]};return{services:[],templates:[]}}
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function getFields(t){if(Array.isArray(t?.fields)&&t.fields.length)return t.fields;return[{id:'photo1',type:'photo',label:'Photo',x:+t.photo_x||616,y:+t.photo_y||579,w:+t.photo_w||526,h:+t.photo_h||661,radius:30},{id:'text1',type:'text',label:'Name',x:+t.name_x||166,y:+t.name_y||1150,w:500,h:100,font:+t.name_font||52,color:t.name_color||'#111111',align:'left'}]}
+function getFields(t){
+  if(Array.isArray(t?._autoPhotoFields)&&t._autoPhotoFields.length)return [...t._autoPhotoFields,...(Array.isArray(t?.fields)?t.fields.filter(f=>f.type!=='photo'):[])];
+  if(Array.isArray(t?.fields)&&t.fields.length)return t.fields;
+  return[{id:'photo1',type:'photo',label:'Photo',x:+t.photo_x||616,y:+t.photo_y||579,w:+t.photo_w||526,h:+t.photo_h||661,radius:30},{id:'text1',type:'text',label:'Name',x:+t.name_x||166,y:+t.name_y||1150,w:500,h:100,font:+t.name_font||52,color:t.name_color||'#111111',align:'left'}]
+}
+function detectTransparentPhotoFields(){
+  if(!current?._img || (current._img.naturalWidth||current._img.width)<2)return [];
+  const z=templateSize(), max=520, sc=Math.min(1,max/Math.max(z.w,z.h)), W=Math.max(1,Math.round(z.w*sc)), H=Math.max(1,Math.round(z.h*sc));
+  const c=document.createElement('canvas');c.width=W;c.height=H;const q=c.getContext('2d',{willReadFrequently:true});q.drawImage(current._img,0,0,W,H);
+  let d;try{d=q.getImageData(0,0,W,H).data}catch(e){return []}
+  const seen=new Uint8Array(W*H), comps=[];
+  const isTrans=i=>d[i+3]<25;
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const idx=y*W+x;if(seen[idx]||!isTrans(idx*4))continue;
+    const stack=[idx];seen[idx]=1;let minX=x,maxX=x,minY=y,maxY=y,area=0,touchesEdge=false;
+    while(stack.length){const p=stack.pop(),px=p%W,py=(p/W)|0;area++;if(px<=0||py<=0||px>=W-1||py>=H-1)touchesEdge=true;minX=Math.min(minX,px);maxX=Math.max(maxX,px);minY=Math.min(minY,py);maxY=Math.max(maxY,py);
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=px+dx,ny=py+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;const ni=ny*W+nx;if(!seen[ni]&&isTrans(ni*4)){seen[ni]=1;stack.push(ni)}}}
+    const frac=area/(W*H),bw=maxX-minX+1,bh=maxY-minY+1;
+    if(!touchesEdge && frac>0.0025 && frac<0.20 && bw>W*0.06 && bh>H*0.08)comps.push({x:minX/sc,y:minY/sc,w:bw/sc,h:bh/sc,area});
+  }
+  comps.sort((a,b)=>b.area-a.area);
+  if(comps.length<2)return [];
+  const out=comps.slice(0,8).sort((a,b)=>a.x-b.x||a.y-b.y);
+  return out.map((r,i)=>({id:'auto_photo_'+i,type:'photo',label:'Photo '+(i+1),x:r.x*BASE_W/z.w,y:r.y*BASE_H/z.h,w:r.w*BASE_W/z.w,h:r.h*BASE_H/z.h,radius:0}));
+}
+function setupAutoPhotoFields(){
+  const detected=detectTransparentPhotoFields();
+  if(detected.length>=2){current._autoPhotoFields=detected;photos={};crop={};cropped={};renderFields();updateButtons();return true}
+  current._autoPhotoFields=null;return false;
+}
 function photoFields(){return getFields(current).filter(f=>f.type==='photo')}
 function requiredReady(){const pf=photoFields();return pf.length>0&&pf.every(f=>photos[f.id]&&cropped[f.id])}
 function updateButtons(){const ok=requiredReady();['generate','download','share'].forEach(id=>document.getElementById(id).disabled=!ok);if(ok)statusEl.textContent='Ready ✓'}
@@ -99,7 +127,7 @@ function cropUI(f,im){
 function roundedClipPreview(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 
 function renderFields(){const box=document.getElementById('fields');if(!current){box.innerHTML='';return}box.innerHTML='';getFields(current).forEach(f=>{const row=document.createElement('div');row.className='field';const label=document.createElement('label');label.textContent=f.label||(f.type==='photo'?'Photo':'Text');row.appendChild(label);if(f.type==='photo'){const el=document.createElement('input');el.id='f_'+f.id;el.type='file';el.accept='image/*';row.appendChild(el);const holder=document.createElement('div');holder.id='holder_'+f.id;row.appendChild(holder);el.onchange=e=>{const file=e.target.files?.[0];if(!file)return;const rd=new FileReader();rd.onload=ev=>{const im=new Image();im.onload=async()=>{photos[f.id]=im;crop[f.id]=cropDefaults(f,im);cropped[f.id]=false;holder.innerHTML='';const loading=document.createElement('div');loading.className='crophint';loading.textContent='✨ Detecting face and fitting photo...';holder.appendChild(loading);draw();statusEl.textContent='Detecting face...';const ok=await autoFaceCrop(f,im);holder.innerHTML='';holder.appendChild(cropUI(f,im));draw();statusEl.textContent=ok?'✨ Face centered automatically. Tap Crop or adjust if needed.':'Face not detected — photo is centered. You can adjust manually.';updateButtons()};im.src=ev.target.result};rd.readAsDataURL(file)};if(photos[f.id])holder.appendChild(cropUI(f,photos[f.id]))}else{const el=document.createElement('input');el.id='f_'+f.id;el.type='text';el.placeholder='Enter '+(f.label||'text');el.value=values[f.id]||'';el.oninput=()=>{values[f.id]=el.value;draw()};row.appendChild(el)}box.appendChild(row)})}
-function loadBgAndDraw(){if(!current)return;const im=new Image();im.onload=()=>{current._img=im;photoMaskCache.clear();draw()};im.src=current.image_url}
+function loadBgAndDraw(){if(!current)return;const im=new Image();im.onload=()=>{current._img=im;photoMaskCache.clear();setupAutoPhotoFields();draw()};im.src=current.image_url}
 function roundedClip(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 function draw(){
   if(!current||!current._img)return; setCanvasSize(); const z=templateSize(); ctx.clearRect(0,0,z.w,z.h); const fields=getFields(current);
