@@ -39,10 +39,10 @@ async function autoFaceCrop(f,im){
     const b=best.boundingBox;
     const fx=+b.originX||+b.x||0,fy=+b.originY||+b.y||0,fw=+b.width||0,fh=+b.height||0;
     if(!fw||!fh)throw new Error('Invalid face box');
-    const targetFaceH=h*(+f.face_ratio||0.45);
+    const targetFaceH=h*(+f.face_ratio||0.38);
     c.zoom=Math.max(1,Math.min(3,targetFaceH/(fh*c.base)));
     const s=c.base*c.zoom,sw=im.width*s,sh=im.height*s;
-    const targetX=w/2,targetY=h*(+f.face_y||0.40);
+    const targetX=w/2,targetY=h*(+f.face_y||0.42);
     c.px=targetX-(fx+fw/2)*s-(w-sw)/2;
     c.py=targetY-(fy+fh/2)*s-(h-sh)/2;
     clampCrop(c,w,h,im);c.auto=true;c.face={x:fx,y:fy,w:fw,h:fh};crop[f.id]=c;
@@ -69,11 +69,32 @@ function applyFrameMask(frame,f){
   frame.style.borderRadius='0';const url='url("'+m.toDataURL('image/png')+'")';frame.style.maskImage=url;frame.style.webkitMaskImage=url;frame.style.maskSize='100% 100%';frame.style.webkitMaskSize='100% 100%';frame.style.maskRepeat='no-repeat';frame.style.webkitMaskRepeat='no-repeat';
 }
 
-function cropUI(f,im){const id=f.id;crop[id]=crop[id]||cropDefaults(f,im);const c=crop[id],w=+f.w||300,h=+f.h||400;const wrap=document.createElement('div');wrap.className='cropbox';const frame=document.createElement('div');frame.className='cropframe';frame.style.aspectRatio=w+'/'+h;const img=document.createElement('img');img.src=im.src;frame.appendChild(img);applyFrameMask(frame,f);const controls=document.createElement('div');controls.className='cropcontrols';controls.innerHTML='<span>Zoom</span><input type="range" min="1" max="3" step="0.01" value="'+c.zoom+'"><b>'+c.zoom.toFixed(2)+'×</b>';const actions=document.createElement('div');actions.className='cropactions';const cropBtn=document.createElement('button');cropBtn.className='btn green';cropBtn.textContent=cropped[id]?'✓ Cropped':'Crop';const resetBtn=document.createElement('button');resetBtn.className='btn dark';resetBtn.textContent='Reset';actions.append(cropBtn,resetBtn);const hint=document.createElement('div');hint.className='crophint';hint.textContent='✨ Face is auto-centered. Drag or Zoom only if you want a small adjustment.';const ok=document.createElement('div');ok.className='cropok';ok.textContent=cropped[id]?'✓ Photo is ready':'Adjust the photo, then tap Crop';wrap.append(frame,controls,actions,hint,ok);
-const render=()=>{const rect=frame.getBoundingClientRect();const scale=rect.width/w;const iw=im.width*c.base*c.zoom*scale,ih=im.height*c.base*c.zoom*scale;img.style.width=iw+'px';img.style.height=ih+'px';img.style.left=(rect.width-iw)/2+c.px*scale+'px';img.style.top=(rect.height-ih)/2+c.py*scale+'px';controls.querySelector('b').textContent=c.zoom.toFixed(2)+'×'};requestAnimationFrame(render);
-controls.querySelector('input').oninput=e=>{c.zoom=+e.target.value;render();draw();cropped[id]=false;ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};
-let sx=0,sy=0,spx=0,spy=0,drag=false;const down=e=>{drag=true;const p=e.touches?e.touches[0]:e;sx=p.clientX;sy=p.clientY;spx=c.px;spy=c.py;e.preventDefault()};const move=e=>{if(!drag)return;const p=e.touches?e.touches[0]:e;const rect=frame.getBoundingClientRect();const scale=rect.width/w;c.px=spx+(p.clientX-sx)/scale;c.py=spy+(p.clientY-sy)/scale;render();draw();cropped[id]=false;ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons();e.preventDefault()};const up=()=>drag=false;frame.addEventListener('pointerdown',down);window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',up);
-cropBtn.onclick=()=>{cropped[id]=true;ok.textContent='✓ Photo is ready';cropBtn.textContent='✓ Cropped';draw();updateButtons()};resetBtn.onclick=()=>{crop[id]=cropDefaults(f,im);cropped[id]=false;controls.querySelector('input').value=1;render();draw();ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};return wrap}
+function cropUI(f,im){
+  const id=f.id;crop[id]=crop[id]||cropDefaults(f,im);const c=crop[id],w=+f.w||300,h=+f.h||400;
+  const wrap=document.createElement('div');wrap.className='cropbox';
+  const frame=document.createElement('div');frame.className='cropframe';frame.style.aspectRatio=w+'/'+h;
+  const pv=document.createElement('canvas');pv.width=Math.max(1,Math.round(w));pv.height=Math.max(1,Math.round(h));frame.appendChild(pv);const pctx=pv.getContext('2d');
+  const mask=getPhotoMask(f);
+  const controls=document.createElement('div');controls.className='cropcontrols';controls.innerHTML='<span>Zoom</span><input type="range" min="1" max="3" step="0.01" value="'+c.zoom+'"><b>'+c.zoom.toFixed(2)+'×</b>';
+  const actions=document.createElement('div');actions.className='cropactions';const cropBtn=document.createElement('button');cropBtn.className='btn green';cropBtn.textContent=cropped[id]?'✓ Cropped':'Crop';const resetBtn=document.createElement('button');resetBtn.className='btn dark';resetBtn.textContent='Reset';actions.append(cropBtn,resetBtn);
+  const hint=document.createElement('div');hint.className='crophint';hint.textContent='✨ Face is auto-centered. Drag or Zoom only if you want a small adjustment.';
+  const ok=document.createElement('div');ok.className='cropok';ok.textContent=cropped[id]?'✓ Photo is ready':'Adjust the photo, then tap Crop';wrap.append(frame,controls,actions,hint,ok);
+  const render=()=>{
+    const s=c.base*(c.zoom||1),sw=im.width*s,sh=im.height*s,dx=(w-sw)/2+(c.px||0),dy=(h-sh)/2+(c.py||0);
+    pctx.clearRect(0,0,w,h);pctx.fillStyle='#111';pctx.fillRect(0,0,w,h);
+    if(mask){
+      const pc=document.createElement('canvas');pc.width=Math.ceil(w);pc.height=Math.ceil(h);const q=pc.getContext('2d');q.drawImage(im,dx,dy,sw,sh);q.globalCompositeOperation='destination-in';q.drawImage(mask,0,0,w,h);pctx.drawImage(pc,0,0);
+    }else{pctx.save();roundedClipPreview(pctx,0,0,w,h,Math.min(f.radius||30,Math.min(w,h)/8));pctx.clip();pctx.drawImage(im,dx,dy,sw,sh);pctx.restore()}
+    pctx.save();pctx.strokeStyle='#16803a';pctx.lineWidth=Math.max(3,Math.min(w,h)*.012);pctx.strokeRect(pctx.lineWidth/2,pctx.lineWidth/2,w-pctx.lineWidth,h-pctx.lineWidth);pctx.restore();
+    controls.querySelector('b').textContent=c.zoom.toFixed(2)+'×';
+  };requestAnimationFrame(render);
+  controls.querySelector('input').oninput=e=>{c.zoom=+e.target.value;clampCrop(c,w,h,im);render();draw();cropped[id]=false;ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};
+  let sx=0,sy=0,spx=0,spy=0,drag=false;const down=e=>{drag=true;const p=e.touches?e.touches[0]:e;sx=p.clientX;sy=p.clientY;spx=c.px;spy=c.py;e.preventDefault()};const move=e=>{if(!drag)return;const p=e.touches?e.touches[0]:e;const rect=pv.getBoundingClientRect();const scale=rect.width/w;c.px=spx+(p.clientX-sx)/scale;c.py=spy+(p.clientY-sy)/scale;clampCrop(c,w,h,im);render();draw();cropped[id]=false;ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons();e.preventDefault()};const up=()=>drag=false;frame.addEventListener('pointerdown',down);window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',up);
+  cropBtn.onclick=()=>{cropped[id]=true;ok.textContent='✓ Photo is ready';cropBtn.textContent='✓ Cropped';draw();updateButtons()};
+  resetBtn.onclick=()=>{crop[id]=cropDefaults(f,im);cropped[id]=false;controls.querySelector('input').value=1;render();draw();ok.textContent='Adjust the photo, then tap Crop';cropBtn.textContent='Crop';updateButtons()};return wrap
+}
+function roundedClipPreview(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+
 function renderFields(){const box=document.getElementById('fields');if(!current){box.innerHTML='';return}box.innerHTML='';getFields(current).forEach(f=>{const row=document.createElement('div');row.className='field';const label=document.createElement('label');label.textContent=f.label||(f.type==='photo'?'Photo':'Text');row.appendChild(label);if(f.type==='photo'){const el=document.createElement('input');el.id='f_'+f.id;el.type='file';el.accept='image/*';row.appendChild(el);const holder=document.createElement('div');holder.id='holder_'+f.id;row.appendChild(holder);el.onchange=e=>{const file=e.target.files?.[0];if(!file)return;const rd=new FileReader();rd.onload=ev=>{const im=new Image();im.onload=async()=>{photos[f.id]=im;crop[f.id]=cropDefaults(f,im);cropped[f.id]=false;holder.innerHTML='';const loading=document.createElement('div');loading.className='crophint';loading.textContent='✨ Detecting face and fitting photo...';holder.appendChild(loading);draw();statusEl.textContent='Detecting face...';const ok=await autoFaceCrop(f,im);holder.innerHTML='';holder.appendChild(cropUI(f,im));draw();statusEl.textContent=ok?'✨ Face centered automatically. Tap Crop or adjust if needed.':'Face not detected — photo is centered. You can adjust manually.';updateButtons()};im.src=ev.target.result};rd.readAsDataURL(file)};if(photos[f.id])holder.appendChild(cropUI(f,photos[f.id]))}else{const el=document.createElement('input');el.id='f_'+f.id;el.type='text';el.placeholder='Enter '+(f.label||'text');el.value=values[f.id]||'';el.oninput=()=>{values[f.id]=el.value;draw()};row.appendChild(el)}box.appendChild(row)})}
 function loadBgAndDraw(){if(!current)return;const im=new Image();im.onload=()=>{current._img=im;photoMaskCache.clear();draw()};im.src=current.image_url}
 function roundedClip(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
